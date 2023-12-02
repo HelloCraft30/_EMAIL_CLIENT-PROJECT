@@ -51,6 +51,21 @@ void run(SOCKET& smtp, SOCKET& pop3, const string& localEmail) {
 		switch (cmd) {
 		case '3':
 			exit(0);
+		case '2': {
+			string path = "local_mail_data\\" + localEmail + "\\" + "Inbox\\" + "list_of_mails.txt";
+			fstream open(path.c_str(), ios::in);
+			if (open.fail()) {
+				cout << "Can't open file!\n";
+				break;
+			}
+			string line = "";
+			while (getline(open, line)) {
+				cout << line << endl;
+			}
+			open.close();
+
+			break;
+		}
 		case '1': {
 			MAIL mail;
 			mail.mailFrom = localEmail;
@@ -70,8 +85,13 @@ void run(SOCKET& smtp, SOCKET& pop3, const string& localEmail) {
 			string trash;
 			ss >> trash;
 			int count = 0;
+
 			ss >> count;
 			int i = 1;
+			string path2 = "local_mail_data\\" + localEmail + "\\" + "Inbox\\" + "list_of_mails.txt";
+			fstream emptyPath(path2.c_str(), ios::out | ios::trunc);
+			emptyPath.close();
+
 			while (count--) {
 				string num = to_string(i++);
 				command = "RETR " + num + "\r\n";
@@ -97,24 +117,22 @@ void run(SOCKET& smtp, SOCKET& pop3, const string& localEmail) {
 				subject.pop_back(); fromMail.pop_back();
 
 				string path = "local_mail_data\\" + localEmail + "\\" + "Inbox\\" + fileNameSave(fromMail, subject) + ".txt";
-				string path2 = "local_mail_data\\" + localEmail + "\\" + "Inbox\\" + "list_of_mails.txt";
 				fstream saveMailName(path2.c_str(), ios::out | ios::app);
 				saveMailName << '<' << fromMail << '>' << '\t' << '<' << subject << '>' << endl;
 				saveMailName.close();
 				fstream fileOpen(path.c_str(), ios::out | ios::trunc);
-				
+
 				stringstream ssx{ a };
 				getline(ssx, line);
 				cout << line << endl;
 				while (getline(ssx, line)) {
-					cout << line << endl;
 					if (line == "----End Content----\r") {
 						break;
 					}
 					fileOpen << line << endl;
 				}
-
-
+				getline(ssx, line);
+				if (line != ".\r") fileOpen << line << endl;
 				fileOpen.close();
 				memset(buffer, 0, sizeof(buffer));
 			}
@@ -298,26 +316,26 @@ void doSMTP(SOCKET& socket, const MAIL& mail) {
 	cmd = "----End Content----\n";
 	send(socket, cmd.c_str(), cmd.size(), 0);
 	int i = 1;
-	if (mail.pathFiles.size()) {
-		for (const auto& a : mail.pathFiles) {
-			//tim duoi
-			string path, name, extension;
-			//tach duoi
-			SplitPath(a, path, name, extension);
-			string str = "Attached " + to_string(i) + ": " + name + ", type: " + extension + "\r\n";//duoi file
-			send(socket, str.c_str(), str.size(), 0);
-			fstream fileOpen(a.c_str(), ios::binary | ios::in);
-			char buffer[4096]{};
-			while (!fileOpen.eof()) {
-				fileOpen.read(buffer, 4096);
-				streamsize bytesRead = fileOpen.gcount();
-				send(socket, buffer, bytesRead, 0);
-			}
-			fileOpen.close();
-			send(socket, "\n", sizeof("\n"), 0);
+
+	for (const auto& a : mail.pathFiles) {
+		//tim duoi
+		string path, name, extension;
+		//tach duoi
+		SplitPath(a, path, name, extension);
+		string str = "Attached " + to_string(i) + ": " + name + ", type: " + extension + "\r\n";//duoi file
+		send(socket, str.c_str(), str.size(), 0);
+		fstream fileOpen(a.c_str(), ios::binary | ios::in);
+		char buffer[4096]{};
+		while (!fileOpen.eof()) {
+			fileOpen.read(buffer, 4096);
+			streamsize bytesRead = fileOpen.gcount();
+			send(socket, buffer, bytesRead, 0);
 		}
+		fileOpen.close();
+		send(socket, "\n", sizeof("\n")-1, 0);
 	}
-	send(socket, ".\r\n", sizeof(".\r\n"), 0);
+
+	send(socket, ".\r\n", sizeof(".\r\n")-1, 0);
 }
 
 string fileNameSave(const string& from, const string& subject) {
