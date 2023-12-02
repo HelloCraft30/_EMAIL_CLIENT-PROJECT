@@ -30,6 +30,8 @@ void writeMail(MAIL& mail);
 
 void doSMTP(SOCKET& socket, const MAIL& mail);
 
+string fileNameSave(const string& from, const string& subject);
+
 void run(SOCKET& smtp, SOCKET& pop3, const string& localEmail) {
 	while (true) {
 		cout << "--------------- EMAIL CLIENT ---------------\n\n";
@@ -75,17 +77,43 @@ void run(SOCKET& smtp, SOCKET& pop3, const string& localEmail) {
 				recv(pop3, buffer, sizeof(buffer), 0);
 
 				string a;
-				for (int j = 0; j < sizeof(buffer); j++) a.push_back(buffer[j]);
+				for (int j = 0; j < sizeof(buffer); j++) {
+					if (buffer[j] != 0)
+						a.push_back(buffer[j]);
+				}
 
-				cout << a;
+				stringstream sss{ a };
+				string line, subject, fromMail;
+				while (getline(sss, line)) {
+					if (line.find("Subject: ") != -1) {
+						subject = line.substr(line.find(":") + 2);
+					}
+					if (line.find("From: ") != -1) {
+						fromMail = line.substr(line.find(":") + 2);
+					}
+				}
+				subject.pop_back(); fromMail.pop_back();
 
-				string path = "local_mail_data\\" + localEmail + "\\" + "Inbox\\"  + ".txt";
+				string path = "local_mail_data\\" + localEmail + "\\" + "Inbox\\" + fileNameSave(fromMail, subject) + ".txt";
+				string path2 = "local_mail_data\\" + localEmail + "\\" + "Inbox\\" + "list_of_mails.txt";
+				fstream saveMailName(path2.c_str(), ios::out | ios::trunc);
+				saveMailName << '<' << fromMail << '>' << '\t' << '<' << subject << '>' << endl;
+				saveMailName.close();
 				fstream fileOpen(path.c_str(), ios::out | ios::trunc);
 
+				bool gate = false;
 				for (int j = 0; j < a.size(); j++) {
+					if (a[j] == '\n') {
+						if (!gate) {
+							gate = true;
+							continue;
+						}
+					}
+					if(gate)
 					fileOpen << a[j];
 				}
 				fileOpen.close();
+				memset(buffer, 0, sizeof(buffer));
 			}
 
 			break;
@@ -265,4 +293,18 @@ void doSMTP(SOCKET& socket, const MAIL& mail) {
 		send(socket, cmd.c_str(), cmd.size(), 0);
 	}
 	send(socket, ".\r\n", sizeof(".\r\n"), 0);
+}
+
+string fileNameSave(const string& from, const string& subject) {
+	int n1 = sizeof(from), n2 = sizeof(subject);
+	string nameSave;
+	for (int i = 0; i < n1 && from[i] != '\0'; i++) {
+		nameSave += from[i];
+	}
+	nameSave += '-';
+	for (int i = 0; i < n2 && subject[i] != '\0'; i++) {
+		if (subject[i] == ' ') nameSave += '_';
+		else nameSave += subject[i];
+	}
+	return nameSave;
 }
