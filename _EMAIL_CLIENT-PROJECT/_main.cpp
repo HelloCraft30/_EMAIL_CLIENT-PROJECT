@@ -124,7 +124,6 @@ void run(SOCKET& smtp, SOCKET& pop3, const string& localEmail) {
 
 				stringstream ssx{ a };
 				getline(ssx, line);
-				cout << line << endl;
 				while (getline(ssx, line)) {
 					if (line == "----End Content----\r") {
 						break;
@@ -322,7 +321,7 @@ void doSMTP(SOCKET& socket, const MAIL& mail) {
 		string path, name, extension;
 		//tach duoi
 		SplitPath(a, path, name, extension);
-		string str = "Attached " + to_string(i) + ": " + name + ", type: " + extension + "\r\n";//duoi file
+		string str = "Attached " + to_string(i) + ": " + name +"."+ extension + "\r\n";//duoi file
 		send(socket, str.c_str(), str.size(), 0);
 		fstream fileOpen(a.c_str(), ios::binary | ios::in);
 		char buffer[4096]{};
