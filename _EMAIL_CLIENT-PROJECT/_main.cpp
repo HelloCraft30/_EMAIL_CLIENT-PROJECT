@@ -34,36 +34,88 @@ string fileNameSave(const string& from, const string& subject);
 
 void SplitPath(const std::string& fullPath, std::string& path, std::string& fileName, std::string& extension);
 
-void run(SOCKET& smtp, SOCKET& pop3, const string& localEmail) {
+void run(SOCKET& smtp, SOCKET& pop3, string& localEmail) {
 	char buffer[4096]{ 0 };
 	recv(pop3, buffer, sizeof(buffer), 0);
 	memset(buffer, 0, sizeof(buffer));
 	while (true) {
+		system("cls");
 		cout << "--------------- EMAIL CLIENT ---------------\n\n";
 		cout << "      Hello <" << localEmail << ">\n\n";
 		cout << "MENU:\n";
 		cout << "1. Send an email\n";
 		cout << "2. Check the list of received emails\n";
 		cout << "3. Quit\n";
+		cout << "4. Logout\n";
 		cout << "Your choice: ";
 		char cmd = 0;
 		cin >> cmd;
 		switch (cmd) {
+		case '4': {
+			LoginManager loginManager;
+			localEmail = loginManager.run();
+			break;
+		}
 		case '3':
 			exit(0);
 		case '2': {
-			string path = "local_mail_data\\" + localEmail + "\\" + "Inbox\\" + "list_of_mails.txt";
+			string path = "local_mail_data\\" + localEmail + "\\";
+			vector <string> folder = { "Important", "Inbox", "Project", "Spam", "Work" };
+			cout << "--------------- EMAIL CLIENT FOLDER ---------------\n\n";
+			cout << "      Hello <" << localEmail << ">\n\n";
+			cout << "MENU:\n";
+			cout << "1. Important\n";
+			cout << "2. Inbox\n";
+			cout << "3. Project\n";
+			cout << "4. Spam\n";
+			cout << "5. Work\n";
+			int choice = 0;
+			do {
+				cout << "Your choice: ";
+				cin >> choice;
+			} while (choice <= 0 || choice >5);
+			string path2 = path;
+			path2 = path2 + folder[choice - 1];
+			path = path + folder[choice - 1] + "\\" + "list_of_mails.txt";
 			fstream open(path.c_str(), ios::in);
 			if (open.fail()) {
-				cout << "Can't open file!\n";
+				cout << "Empty\n";
+				system("pause");
 				break;
 			}
 			string line = "";
+			vector <string> mailName = {};
+			int index = 1;
 			while (getline(open, line)) {
-				cout << line << endl;
+				mailName.push_back(line);
+				cout << index++ << ". " << line << endl;
 			}
-			open.close();
+			choice = 0;
+			cout << "Your choice: ";
+			cin >> choice;
+			line = mailName[choice - 1];
 
+			for (int i = 0; i < line.size(); i++) {
+				if (line[i] == '<' || line[i] == '>') line.erase(i, 1);
+				if (line[i] == '\t') line[i] = '-';
+				if (line[i] == ' ') line[i] = '_';
+			}
+			line += ".txt";
+
+			path2 += "\\" + line;
+			fstream readMail(path2.c_str(), ios::in);
+			if (readMail.fail()) {
+				cout << "Can't open mail file!\n";
+				break;
+			}
+			string temp;
+			while (getline(readMail, temp)) {
+				cout << temp << endl;
+			}
+
+			readMail.close();
+			open.close();
+			system("pause");
 			break;
 		}
 		case '1': {
@@ -321,7 +373,7 @@ void doSMTP(SOCKET& socket, const MAIL& mail) {
 		string path, name, extension;
 		//tach duoi
 		SplitPath(a, path, name, extension);
-		string str = "Attached " + to_string(i) + ": " + name +"."+ extension + "\r\n";//duoi file
+		string str = "Attached " + to_string(i) + ": " + name + "." + extension + "\r\n";//duoi file
 		send(socket, str.c_str(), str.size(), 0);
 		fstream fileOpen(a.c_str(), ios::binary | ios::in);
 		char buffer[4096]{};
@@ -331,10 +383,10 @@ void doSMTP(SOCKET& socket, const MAIL& mail) {
 			send(socket, buffer, bytesRead, 0);
 		}
 		fileOpen.close();
-		send(socket, "\n", sizeof("\n")-1, 0);
+		send(socket, "\n", sizeof("\n") - 1, 0);
 	}
 
-	send(socket, ".\r\n", sizeof(".\r\n")-1, 0);
+	send(socket, ".\r\n", sizeof(".\r\n") - 1, 0);
 }
 
 string fileNameSave(const string& from, const string& subject) {
