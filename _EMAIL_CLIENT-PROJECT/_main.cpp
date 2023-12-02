@@ -32,7 +32,12 @@ void doSMTP(SOCKET& socket, const MAIL& mail);
 
 string fileNameSave(const string& from, const string& subject);
 
+void SplitPath(const std::string& fullPath, std::string& path, std::string& fileName, std::string& extension);
+
 void run(SOCKET& smtp, SOCKET& pop3, const string& localEmail) {
+	char buffer[4096]{ 0 };
+	recv(pop3, buffer, sizeof(buffer), 0);
+	memset(buffer, 0, sizeof(buffer));
 	while (true) {
 		cout << "--------------- EMAIL CLIENT ---------------\n\n";
 		cout << "      Hello <" << localEmail << ">\n\n";
@@ -53,11 +58,8 @@ void run(SOCKET& smtp, SOCKET& pop3, const string& localEmail) {
 			doSMTP(smtp, mail);
 			break;
 		}
-		case '4': {//update mails to inbox
-			char buffer[4096]{ 0 };
+		case 's': {//update mails to inbox
 			string command = "USER " + localEmail + "\r\n";
-			recv(pop3, buffer, sizeof(buffer), 0);
-			memset(buffer, 0, sizeof(buffer));
 			send(pop3, command.c_str(), command.size(), 0);
 			recv(pop3, buffer, sizeof(buffer), 0);
 			memset(buffer, 0, sizeof(buffer));
@@ -71,7 +73,7 @@ void run(SOCKET& smtp, SOCKET& pop3, const string& localEmail) {
 			ss >> count;
 			int i = 1;
 			while (count--) {
-				string num = to_string(i);
+				string num = to_string(i++);
 				command = "RETR " + num + "\r\n";
 				send(pop3, command.c_str(), command.size(), 0);
 				recv(pop3, buffer, sizeof(buffer), 0);
@@ -96,26 +98,26 @@ void run(SOCKET& smtp, SOCKET& pop3, const string& localEmail) {
 
 				string path = "local_mail_data\\" + localEmail + "\\" + "Inbox\\" + fileNameSave(fromMail, subject) + ".txt";
 				string path2 = "local_mail_data\\" + localEmail + "\\" + "Inbox\\" + "list_of_mails.txt";
-				fstream saveMailName(path2.c_str(), ios::out | ios::trunc);
+				fstream saveMailName(path2.c_str(), ios::out | ios::app);
 				saveMailName << '<' << fromMail << '>' << '\t' << '<' << subject << '>' << endl;
 				saveMailName.close();
 				fstream fileOpen(path.c_str(), ios::out | ios::trunc);
-
-				bool gate = false;
-				for (int j = 0; j < a.size(); j++) {
-					if (a[j] == '\n') {
-						if (!gate) {
-							gate = true;
-							continue;
-						}
+				
+				stringstream ssx{ a };
+				getline(ssx, line);
+				cout << line << endl;
+				while (getline(ssx, line)) {
+					cout << line << endl;
+					if (line == "----End Content----\r") {
+						break;
 					}
-					if(gate)
-					fileOpen << a[j];
+					fileOpen << line << endl;
 				}
+
+
 				fileOpen.close();
 				memset(buffer, 0, sizeof(buffer));
 			}
-
 			break;
 		}
 		}
@@ -232,6 +234,7 @@ void writeMail(MAIL& mail) {
 		cout << "Number of files: ";
 		cin >> numF;
 		int i = 0;
+		cin.ignore();
 		while (numF--) {
 			cout << "Path " << i << ": ";
 			getline(cin, tmp);
@@ -292,6 +295,28 @@ void doSMTP(SOCKET& socket, const MAIL& mail) {
 		cmd = a + "\r\n";
 		send(socket, cmd.c_str(), cmd.size(), 0);
 	}
+	cmd = "----End Content----\n";
+	send(socket, cmd.c_str(), cmd.size(), 0);
+	int i = 1;
+	if (mail.pathFiles.size()) {
+		for (const auto& a : mail.pathFiles) {
+			//tim duoi
+			string path, name, extension;
+			//tach duoi
+			SplitPath(a, path, name, extension);
+			string str = "Attached " + to_string(i) + ": " + name + ", type: " + extension + "\r\n";//duoi file
+			send(socket, str.c_str(), str.size(), 0);
+			fstream fileOpen(a.c_str(), ios::binary | ios::in);
+			char buffer[4096]{};
+			while (!fileOpen.eof()) {
+				fileOpen.read(buffer, 4096);
+				streamsize bytesRead = fileOpen.gcount();
+				send(socket, buffer, bytesRead, 0);
+			}
+			fileOpen.close();
+			send(socket, "\n", sizeof("\n"), 0);
+		}
+	}
 	send(socket, ".\r\n", sizeof(".\r\n"), 0);
 }
 
@@ -307,4 +332,24 @@ string fileNameSave(const string& from, const string& subject) {
 		else nameSave += subject[i];
 	}
 	return nameSave;
+}
+
+void SplitPath(const std::string& fullPath, std::string& path, std::string& fileName, std::string& extension) {
+	size_t lastSlash = fullPath.find_last_of("/\\");
+	size_t lastDot = fullPath.find_last_of(".");
+	if (lastSlash != std::string::npos) {
+		path = fullPath.substr(0, lastSlash + 1);
+		fileName = fullPath.substr(lastSlash + 1);
+	}
+	else {
+		path = "";
+		fileName = fullPath;
+	}
+	if (lastDot != std::string::npos && lastDot > lastSlash) {
+		fileName = fileName.substr(0, lastDot - lastSlash - 1);
+		extension = fullPath.substr(lastDot + 1);
+	}
+	else {
+		extension = "";
+	}
 }
